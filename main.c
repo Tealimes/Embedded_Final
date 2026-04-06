@@ -37,16 +37,14 @@ void main(void) {
     WDTCTL = WDTPW | WDTHOLD;
     PM5CTL0 &= ~LOCKLPM5;
 
+
+    //**********************************
+    // BUZZER CONFIGURATION
+
     // Direct Buzzer Pin to TB0.6 functionality
     P2DIR |= PWM_PIN; // Direct pin as output
     P2SEL1 &= ~PWM_PIN;
     P2SEL0 |= PWM_PIN;
-
-    // Configure ACLK to the 32 KHz crystal
-    config_ACLK_to_32KHz_crystal();
-
-    // Enable global interrupt bit
-    _enable_interrupts();
 
     // Starting the timer in the up mode; period = 0.001 seconds
     // (ACLK @ 32 KHz) (divide by 1) (Up mode)
@@ -57,6 +55,14 @@ void main(void) {
     TB0CCTL6 |= OUTMOD_7; // Output pattern: Reset/set
     TB0CCR6 = 0; // buzz sounds between 0-32
                  // 0 for off, 1-32 for other sounds
+
+    //**********************************
+
+    // Configure ACLK to the 32 KHz crystal
+    config_ACLK_to_32KHz_crystal();
+
+    // Enable global interrupt bit
+    _enable_interrupts();
 
     // Configure LEDs
     P1DIR |= redLED;                P9DIR |= greenLED;
