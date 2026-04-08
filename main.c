@@ -1,8 +1,4 @@
-/*
-EEL 4742C - UCF
-
-Code that prints a welcome message to the pixel display.
-*/
+// Final Project
 
 #include "msp430fr6989.h"
 #include "Grlib/grlib/grlib.h"          // Graphics library (grlib)
@@ -14,6 +10,23 @@ Code that prints a welcome message to the pixel display.
 #define S1 BIT1
 #define S2 BIT2
 
+#define PWM_PIN BIT7 // PWM pin at P2.7
+// #define ACC_PIN BITx // Accelerometer Pin
+
+
+// Attitude Constraints
+#define max_x 3500
+#define max_y 3500
+#define min_x 500
+#define min_y 500
+#define shift_high 2500
+#define shift_low 1500
+
+// Attitude coordinates
+static volatile uint16_t Xp = 2000, Yp = 2000;
+
+
+// Images used for attitudes
 extern tImage jester_cat;
 extern tImage level;
 extern tImage lb;
@@ -27,7 +40,10 @@ extern tImage desc;
 
 void Initialize_Clock_System();
 
-#define PWM_PIN BIT7 // PWM pin at P2.7
+void Attitude_Constraints(); // Checks Max Constraints
+void Attitude_Images(); // Checks positioning for image changes
+
+Graphics_Context g_sContext;        // Declare a graphic library context
 
 // ****************************************************************************
 void main(void) {
@@ -83,7 +99,7 @@ void main(void) {
 
     ////////////////////////////////////////////////////////////////////////////////////////////
     // Graphics functions
-    Graphics_Context g_sContext;        // Declare a graphic library context
+
     Crystalfontz128x128_Init();         // Initialize the display
 
     // Set the screen orientation
@@ -103,70 +119,92 @@ void main(void) {
     Graphics_clearDisplay(&g_sContext);
     ////////////////////////////////////////////////////////////////////////////////////////////
 
-    // Set Level
-    Graphics_drawImage(&g_sContext, &level, 32, 32);
-
-    _delay_cycles(1000000);
-
-    // Set Climbing Left Bank
-    Graphics_clearDisplay(&g_sContext);
-    Graphics_drawImage(&g_sContext, &climbing_lb, 32, 32);
-
-    _delay_cycles(1000000);
-
-    // Set Climbing Right Bank
-    Graphics_clearDisplay(&g_sContext);
-    Graphics_drawImage(&g_sContext, &climbing_rb, 32, 32);
-
-    _delay_cycles(1000000);
-
-    // Set Climbing
-    Graphics_clearDisplay(&g_sContext);
-    Graphics_drawImage(&g_sContext, &climbing, 32, 32);
-
-    _delay_cycles(1000000);
-
-    // Set Descending
-    Graphics_clearDisplay(&g_sContext);
-    Graphics_drawImage(&g_sContext, &desc, 32, 32);
-
-    _delay_cycles(1000000);
-
-    // Set Descending Left Bank
-    Graphics_clearDisplay(&g_sContext);
-    Graphics_drawImage(&g_sContext, &desc_lb, 32, 32);
-
-    _delay_cycles(1000000);
-
-    // Set Descending Right Bank
-    Graphics_clearDisplay(&g_sContext);
-    Graphics_drawImage(&g_sContext, &desc_rb, 32, 32);
-
-    _delay_cycles(1000000);
-
-    // Set Right Bank
-    Graphics_clearDisplay(&g_sContext);
-    Graphics_drawImage(&g_sContext, &rb, 32, 32);
-
-    _delay_cycles(1000000);
-
-    // Set Left Bank
-    Graphics_clearDisplay(&g_sContext);
-    Graphics_drawImage(&g_sContext, &lb, 32, 32);
-
-
-    _delay_cycles(1000000);
-
     while(1){
-        Graphics_clearDisplay(&g_sContext);
-        Graphics_drawImage(&g_sContext, &level, 32, 32);
+        Xp = 2000;
+        Yp = 2000;
+        Attitude_Images();
+        _delay_cycles(50000000);
 
+        Xp = 3500;
+        Yp = 3500;
+        Attitude_Images();
         _delay_cycles(10000000);
-
     }
 
 }
 
+// Turns buzzer on if beyond constraints set or turn it off
+void Attitude_Constraints(){
+    if(Xp >= max_x | Xp <= min_x){
+        TB0CCR6 = 1; // buzz
+    } else if(Yp >= max_y | Yp <= min_y){
+        TB0CCR6 = 1; // buzz
+    } else{
+        TB0CCR6 = 0; // turn buzzer off
+    }
+}
+
+// Image that displays on LCD based on current attitude
+void Attitude_Images(){
+    char mystring[20];
+
+    // Check if buzzer goes off
+    Attitude_Constraints();
+
+    // Displays image
+    if(Xp <= shift_low & Yp >= shift_high){
+        // Climbing Left Bank
+        Graphics_clearDisplay(&g_sContext);
+        Graphics_drawImage(&g_sContext, &climbing_lb, 32, 32);
+
+    } else if(Xp >= shift_high & Yp >= shift_high){
+        // Climbing Right Bank
+        Graphics_clearDisplay(&g_sContext);
+        Graphics_drawImage(&g_sContext, &climbing_rb, 32, 32);
+
+    } else if(Yp >= shift_high){
+        // Climbing
+        Graphics_clearDisplay(&g_sContext);
+        Graphics_drawImage(&g_sContext, &climbing, 32, 32);
+
+    } else if(Xp <= shift_low & Yp <= shift_low){
+        // Descending Left Bank
+        Graphics_clearDisplay(&g_sContext);
+        Graphics_drawImage(&g_sContext, &desc_lb, 32, 32);
+
+    } else if(Xp >= shift_high & Yp <= shift_low){
+        // Descending Right Bank
+        Graphics_clearDisplay(&g_sContext);
+        Graphics_drawImage(&g_sContext, &desc_rb, 32, 32);
+
+    } else if(Yp <= shift_low){
+        // Descending
+        Graphics_clearDisplay(&g_sContext);
+        Graphics_drawImage(&g_sContext, &desc, 32, 32);
+
+    } else if(Xp <= shift_low){
+        // Left Bank
+        Graphics_clearDisplay(&g_sContext);
+        Graphics_drawImage(&g_sContext, &lb, 32, 32);
+
+    } else if(Xp >= shift_high){
+        // Right Bank
+        Graphics_clearDisplay(&g_sContext);
+        Graphics_drawImage(&g_sContext, &rb, 32, 32);
+
+    } else{
+        // Level
+        Graphics_clearDisplay(&g_sContext);
+        Graphics_drawImage(&g_sContext, &level, 32, 32);
+    }
+
+    // Displays pitch and roll
+    sprintf(mystring, "X- %d", Xp);
+    Graphics_drawStringCentered(&g_sContext, mystring, AUTO_STRING_LENGTH, 64, 110, OPAQUE_TEXT);
+    sprintf(mystring, "Y- %d", Yp);
+    Graphics_drawStringCentered(&g_sContext, mystring, AUTO_STRING_LENGTH, 64, 120, OPAQUE_TEXT);
+
+}
 
 
 void Initialize_Clock_System() {
